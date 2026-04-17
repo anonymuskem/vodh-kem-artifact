@@ -6,11 +6,23 @@
 
 ---
 
+## ⚡ Quick Start
+
+```bash
+# Compile and run (Linux/macOS)
+gcc -O2 -Wno-deprecated-declarations -o vodh_kem main.c -lssl -lcrypto -lm
+./vodh_kem
+```
+
+Expected runtime: approximately 20–30 seconds on a modern machine (50 benchmark runs per scheme at 3072-bit keys).
+
+---
+
 ## 📄 Overview
 
 VODH-KEM is a hybrid Key Encapsulation Mechanism that addresses the **Single-Assumption Failure (SAF)** threat model — the scenario where one classical hardness assumption (RSA or DDH) is broken while the other remains intact, as demonstrated by real-world attacks such as ROCA (2017) and Logjam (2015).
 
-Unlike existing hybrid schemes that achieve security when **at least one** component is secure ("or" model), VODH-KEM requires an adversary to **simultaneously break both** RSA-OAEP and the DDH assumption ("and" model).
+Unlike existing hybrid schemes that achieve security when **at least one** component is secure ("or" model), VODH-KEM is designed to require an adversary to **simultaneously break both** RSA-OAEP and the DDH assumption ("and" model).
 
 ### Three core mechanisms:
 1. **SHA-512 Hash Bridge** — one-way dependency between RSA and ElGamal key generation phases
@@ -85,6 +97,9 @@ gcc -O2 -Wno-deprecated-declarations -o vodh_kem main.c \
 ```
 
 ---
+
+> **Expected runtime:** approximately 20–30 seconds on a modern machine.
+> Key generation is the slowest step (~186 ms per run due to safe prime search).
 
 ## 📊 Generating the Figures
 
