@@ -2,7 +2,7 @@
 
 > **A hybrid public-key KEM combining RSA-OAEP and ElGamal with a Verifiable Random Function bridge for Single-Assumption-Failure (SAF) resilience.**
 
-> ⚠️ **Anonymous repository** — This repository supports an anonymous submission currently under peer review. Author information will be added upon acceptance.
+> ⚠️ **Anonymous repository** — This repository supports an anonymous submission currently under peer review.
 
 ---
 
