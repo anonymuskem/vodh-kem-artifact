@@ -708,6 +708,32 @@ typedef struct {
     int b;
 } VODHCiphertext;
 
+/* Hash-binding for IND-CCA2 (Fujisaki-Okamoto style):
+ * Final session key = SHA-256(K_raw || C_RSA || C_EG.c1 || C_EG.c2 || b)
+ * This binds the session key to the entire ciphertext, preventing
+ * the malleability attack where an adversary re-encrypts K* under RSA
+ * and queries the decryption oracle on (C_RSA', C_EG*, b).
+ */
+static void vodh_bind_session_key(const unsigned char K_raw[SESSION_KEY_LEN],
+                                  const VODHCiphertext *ct,
+                                  unsigned char K_out[SESSION_KEY_LEN]) {
+    EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
+    EVP_DigestInit_ex(mdctx, EVP_sha256(), NULL);
+    EVP_DigestUpdate(mdctx, K_raw, SESSION_KEY_LEN);
+    EVP_DigestUpdate(mdctx, ct->rsa_ct, ct->rsa_ct_len);
+    /* ElGamal c1 and c2 as big-endian bytes */
+    unsigned char eg_buf[384];
+    int len1 = BN_bn2bin(ct->eg_ct.c1, eg_buf);
+    EVP_DigestUpdate(mdctx, eg_buf, len1);
+    int len2 = BN_bn2bin(ct->eg_ct.c2, eg_buf);
+    EVP_DigestUpdate(mdctx, eg_buf, len2);
+    unsigned char b_byte = (unsigned char)ct->b;
+    EVP_DigestUpdate(mdctx, &b_byte, 1);
+    unsigned int outlen = SESSION_KEY_LEN;
+    EVP_DigestFinal_ex(mdctx, K_out, &outlen);
+    EVP_MD_CTX_free(mdctx);
+}
+
 /* Returns 0 on success, sets K_out to the 256-bit session key */
 int vodh_encaps(const VODHKeyPair *kp,
                 unsigned char K_out[SESSION_KEY_LEN],
@@ -741,6 +767,13 @@ int vodh_encaps(const VODHKeyPair *kp,
             BN_free(K_bn); return -1;
         }
     }
+
+    /* === Hash binding (Fujisaki-Okamoto style) ===
+     * Derive final session key K from raw K and the full ciphertext.
+     * This is the IND-CCA2 fix: binds K to (C_RSA, C_EG, b). */
+    unsigned char K_raw[SESSION_KEY_LEN];
+    memcpy(K_raw, K_out, SESSION_KEY_LEN);
+    vodh_bind_session_key(K_raw, ct, K_out);
 
     /* AES-256-GCM data encapsulation */
     const unsigned char *msg = (unsigned char *)"VODH-KEM session established";
@@ -793,7 +826,12 @@ int vodh_decaps(const VODHKeyPair *kp,
     if (memcmp(K_rsa_buf, K_eg_bytes, SESSION_KEY_LEN) != 0)
         return -2;   /* tamper detected */
 
-    memcpy(K_out, K_rsa_buf, SESSION_KEY_LEN);
+    /* === Hash binding (Fujisaki-Okamoto style) ===
+     * Derive final session key from raw K (= K_RSA = K_EG) and the
+     * full ciphertext. This is the IND-CCA2 fix: binds K to (C_RSA, C_EG, b),
+     * preventing the malleability attack where an adversary re-encrypts
+     * K* under RSA and queries the oracle on (C_RSA', C_EG*, b). */
+    vodh_bind_session_key(K_rsa_buf, ct, K_out);
     return 0;
 }
 

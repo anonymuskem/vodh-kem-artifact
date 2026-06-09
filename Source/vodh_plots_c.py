@@ -24,12 +24,34 @@ warnings.filterwarnings('ignore')
 
 # ── Load results ────────────────────────────────────────────────────────────
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-JSON_PATH  = os.path.join(SCRIPT_DIR, "vodh_c_results_3072.json")
+# JSON lives in Source/../Results/Json_Results/
+RESULTS_DIR = os.path.normpath(os.path.join(SCRIPT_DIR, "..", "Results"))
+JSON_DIR    = os.path.join(RESULTS_DIR, "Json_Results")
+IMAGES_DIR  = os.path.join(RESULTS_DIR, "Images")
+JSON_PATH   = os.path.join(JSON_DIR, "vodh_c_results_3072.json")
+
+# Also accept JSON in script dir as fallback (for convenience)
+if not os.path.exists(JSON_PATH):
+    fallback = os.path.join(SCRIPT_DIR, "vodh_c_results_3072.json")
+    if os.path.exists(fallback):
+        JSON_PATH = fallback
+    else:
+        fallback2 = os.path.join(SCRIPT_DIR, "vodh_c_results.json")
+        if os.path.exists(fallback2):
+            JSON_PATH = fallback2
 
 if not os.path.exists(JSON_PATH):
-    print(f"ERROR: {JSON_PATH} not found.")
-    print("Run main.exe first to generate the JSON file (saved as vodh_c_results_3072.json).")
+    print(f"ERROR: vodh_c_results_3072.json not found.")
+    print(f"  Looked in: {JSON_DIR}")
+    print(f"  Looked in: {SCRIPT_DIR}")
+    print("Run main.exe first to generate the JSON file.")
     sys.exit(1)
+
+# Ensure images directory exists
+os.makedirs(IMAGES_DIR, exist_ok=True)
+
+print(f"  Reading: {JSON_PATH}")
+print(f"  Saving figures to: {IMAGES_DIR}")
 
 with open(JSON_PATH) as f:
     D = json.load(f)
@@ -43,7 +65,7 @@ COLORS   = {"rsa_oaep": "#2196F3", "elgamal": "#4CAF50",
 OPS      = ["keygen", "encaps", "decaps"]
 OP_LABEL = ["Key Generation", "Encapsulation", "Decapsulation"]
 
-OUT = SCRIPT_DIR
+OUT = IMAGES_DIR
 
 def savefig(name):
     path = os.path.join(OUT, name)

@@ -261,6 +261,28 @@ def rsa_oaep_decrypt(priv_key, ct: bytes) -> bytes:
              label=None)
     )
 
+def vodh_bind_session_key(K_raw: bytes, ct: 'VODHCiphertext') -> bytes:
+    """Hash-binding for IND-CCA2 (Fujisaki-Okamoto style):
+       Final K = SHA-256(K_raw || C_RSA || C_EG || b)
+       Binds session key to the full ciphertext so an adversary who
+       re-encrypts K* under RSA and queries the oracle on the modified
+       ciphertext does not learn K*.
+    """
+    h = hashlib.sha256()
+    h.update(K_raw)
+    # RSA component
+    if ct.b == 0:
+        h.update(ct.C1_rsa)
+        c1, c2 = ct.C2_eg
+    else:
+        c1, c2 = ct.C1_eg
+        h.update(ct.C2_rsa)
+    # ElGamal component (both c1 and c2)
+    h.update(c1.to_bytes((c1.bit_length() + 7) // 8 or 1, 'big'))
+    h.update(c2.to_bytes((c2.bit_length() + 7) // 8 or 1, 'big'))
+    h.update(bytes([ct.b]))
+    return h.digest()
+
 def vodh_encaps(pk: VODHPublicKey) -> Tuple[bytes, VODHCiphertext]:
     """Algorithm 2: VODH.Encaps"""
 
@@ -284,6 +306,10 @@ def vodh_encaps(pk: VODHPublicKey) -> Tuple[bytes, VODHCiphertext]:
     else:            # ElGamal-first
         ct.C1_eg  = elgamal_encrypt(pk.eg_pub, K_int)
         ct.C2_rsa = rsa_oaep_encrypt(pk.rsa_pub, K)
+
+    # ── Hash binding (Fujisaki-Okamoto style) ──────────────────────────────
+    # Derive final session key K from raw K and full ciphertext (IND-CCA2 fix)
+    K = vodh_bind_session_key(K, ct)
 
     # ── AES-GCM data encapsulation ─────────────────────────────────────────
     nonce = secrets.token_bytes(NONCE_LEN)
@@ -321,7 +347,11 @@ def vodh_decaps(sk: VODHPrivateKey, pk: VODHPublicKey,
     assert hmac.compare_digest(K_rsa, K_eg), \
         "CROSS-VERIFICATION FAILED: ciphertext integrity violation detected"
 
-    K = K_rsa
+    # ── Hash binding (Fujisaki-Okamoto style) ──────────────────────────────
+    # Derive final session key from raw K_RSA (= K_EG) and full ciphertext.
+    # This is the IND-CCA2 fix preventing the malleability attack where
+    # an adversary re-encrypts K* under RSA and queries the oracle.
+    K = vodh_bind_session_key(K_rsa, ct)
 
     # ── AES-GCM decryption ─────────────────────────────────────────────────
     aesgcm = AESGCM(K)

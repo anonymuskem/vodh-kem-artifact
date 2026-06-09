@@ -243,6 +243,19 @@ def bench_vodh(runs):
         else:
             C1_eg  = eg_enc(eg_pub, K_int)
             C2_rsa = rsa_enc(rsa_pub, K)
+        # Hash binding (Fujisaki-Okamoto): K_final = SHA-256(K || C_RSA || C_EG || b)
+        bind = hashlib.sha256()
+        bind.update(K)
+        if b == 0:
+            bind.update(C1_rsa)
+            bind.update(C2_eg[0].to_bytes((C2_eg[0].bit_length()+7)//8 or 1, 'big'))
+            bind.update(C2_eg[1].to_bytes((C2_eg[1].bit_length()+7)//8 or 1, 'big'))
+        else:
+            bind.update(C1_eg[0].to_bytes((C1_eg[0].bit_length()+7)//8 or 1, 'big'))
+            bind.update(C1_eg[1].to_bytes((C1_eg[1].bit_length()+7)//8 or 1, 'big'))
+            bind.update(C2_rsa)
+        bind.update(bytes([b]))
+        K = bind.digest()
         C_msg, nonce = aes_enc(K, msg)
         enc.append((time.perf_counter()-t)*1000)
 
@@ -256,7 +269,19 @@ def bench_vodh(runs):
             K_eg  = int_to_key(eg_dec(eg_priv, ELGAMAL_P, *C1_eg))
             K_rsa = rsa_dec(rsa_priv, C2_rsa)
         assert hmac.compare_digest(K_rsa, K_eg), "Cross-verify failed"
-        K_out = K_rsa
+        # Hash binding: same construction as in encaps
+        bind = hashlib.sha256()
+        bind.update(K_rsa)
+        if b == 0:
+            bind.update(C1_rsa)
+            bind.update(C2_eg[0].to_bytes((C2_eg[0].bit_length()+7)//8 or 1, 'big'))
+            bind.update(C2_eg[1].to_bytes((C2_eg[1].bit_length()+7)//8 or 1, 'big'))
+        else:
+            bind.update(C1_eg[0].to_bytes((C1_eg[0].bit_length()+7)//8 or 1, 'big'))
+            bind.update(C1_eg[1].to_bytes((C1_eg[1].bit_length()+7)//8 or 1, 'big'))
+            bind.update(C2_rsa)
+        bind.update(bytes([b]))
+        K_out = bind.digest()
         aes_dec(K_out, C_msg, nonce)
         dec.append((time.perf_counter()-t)*1000)
 
