@@ -1,6 +1,6 @@
 # VODH-KEM: VRF-Ordered Dual-Hardness Key Encapsulation Mechanism
 
-> **A hybrid public-key KEM combining RSA-OAEP and ElGamal with a Verifiable Random Function bridge for Single-Assumption-Failure (SAF) resilience.**
+> **A hybrid public-key KEM combining RSA-OAEP and ElGamal under a VRF-governed composition order, with cross-verification and Fujisaki–Okamoto-style hash binding.**
 
 > ⚠️ **Anonymous repository** — This repository supports an anonymous submission currently under peer review.
 
@@ -20,14 +20,20 @@ Expected runtime: approximately 20–30 seconds on a modern machine (50 benchmar
 
 ## 📄 Overview
 
-VODH-KEM is a hybrid Key Encapsulation Mechanism that addresses the **Single-Assumption Failure (SAF)** threat model — the scenario where one classical hardness assumption (RSA or DDH) is broken while the other remains intact, as demonstrated by real-world attacks such as ROCA (2017) and Logjam (2015).
+VODH-KEM is a hybrid Key Encapsulation Mechanism that combines RSA-OAEP and ElGamal under a Verifiable Random Function (VRF)-governed composition order, with cross-verification and Fujisaki–Okamoto-style hash binding. It achieves IND-CCA2 security in the Random Oracle Model under the **joint** RSA-OAEP, DDH, and VRF pseudorandomness assumptions.
 
-Unlike existing hybrid schemes that achieve security when **at least one** component is secure ("or" model), VODH-KEM is designed to require an adversary to **simultaneously break both** RSA-OAEP and the DDH assumption ("and" model).
+### 🔍 Scope and honest framing
+
+- **What VODH-KEM achieves:** standard IND-CCA2 security under the joint underlying assumptions (Theorem 1 of the paper).
+- **What VODH-KEM does NOT achieve:** session-key confidentiality when one underlying assumption is broken. On this metric, OR-combiners such as Dodis–Katz are **strictly stronger**.
+- **What VODH-KEM provides structurally:** cross-verification ciphertext integrity (no PPT adversary can re-bind existing ciphertext components without breaking the unbroken assumption) and a verifiable composition order.
+
+The Single-Assumption Failure (SAF) framing in the paper is used as an **analytical lens** for evaluating the construction's structural behavior, not as a strengthened security notion.
 
 ### Three core mechanisms:
-1. **SHA-512 Hash Bridge** — one-way dependency between RSA and ElGamal key generation phases
-2. **ECVRF-P256-SHA256 Order Commitment** — verifiably unpredictable composition ordering
-3. **Cross-Verification Integrity** — implicit ciphertext authentication without a separate MAC
+1. **SHA-512 Hash Bridge** — one-way dependency between RSA parameters and ElGamal group parameters
+2. **ECVRF-P256-SHA256 Order Commitment** — verifiable composition ordering
+3. **Cross-Verification + FO-style Hash Binding** — `K = SHA-256(K_raw ‖ C₁ ‖ C₂ ‖ b)` after cross-check passes; the hash binding is essential to defeat the re-encryption malleability attack
 
 ---
 
@@ -39,7 +45,7 @@ VODH_KEM_M/
 ├── main.c                        # Production C/OpenSSL implementation (PRIMARY)
 ├── vodh_plots_c.py               # Plot generator — reads JSON, produces 11 figures
 ├── prototype.py                  # Python prototype (historical reference, HMAC-SHA256 VRF)
-├── prototype_Compa.py              # Python comparison benchmark (historical reference)
+├── prototype_Compa.py            # Python comparison benchmark (historical reference)
 ├── vodh_c_results_3072.json      # Final benchmark results (50 runs, 3072-bit, C/OpenSSL)
 └── README.md                     # This file
 ```
@@ -48,7 +54,7 @@ VODH_KEM_M/
 
 | File | Description |
 |---|---|
-| `main.c` | Full C/OpenSSL 3.6.1 implementation. Includes VODH-KEM KeyGen, Encaps, Decaps, real ECVRF-P256-SHA256, ElGamal over RFC 3526 Group 15 (3072-bit), and all 9 security verification tests. Outputs benchmark results as JSON. |
+| `main.c` | Full C/OpenSSL 3.6.1 implementation. Includes VODH-KEM KeyGen, Encaps, Decaps with hash binding, real ECVRF-P256-SHA256, ElGamal over RFC 3526 Group 15 (3072-bit), and all 9 security verification tests. Outputs benchmark results as JSON. |
 | `vodh_plots_c.py` | Python script that reads `vodh_c_results_3072.json` and generates 11 publication-quality figures. |
 | `prototype.py` | Original Python 3.11 prototype used for initial correctness validation. Uses HMAC-SHA256 as VRF approximation and 2048-bit keys. Kept for historical reference. |
 | `prototype_Compa.py` | Python comparison benchmark (RSA-OAEP vs ElGamal vs Std. Hybrid vs VODH-KEM) at 2048-bit. Kept for historical reference. |
@@ -99,7 +105,7 @@ gcc -O2 -Wno-deprecated-declarations -o vodh_kem main.c \
 ---
 
 > **Expected runtime:** approximately 20–30 seconds on a modern machine.
-> Key generation is the slowest step (~186 ms per run due to safe prime search).
+> Key generation is the slowest step (~194 ms per run due to safe prime search).
 
 ## 📊 Generating the Figures
 
@@ -134,6 +140,8 @@ This generates all 11 figures used in the paper.
     T7. Hash bridge sensitive to RSA params              : PASS
     T8. VRF different input => different beta            : PASS
     T9. ECVRF verifiable with public key only (no sk)    : PASS
+
+  VODH-KEM (Ours):  KeyGen ~194 ms   Encaps ~12.4 ms   Decaps ~15.2 ms
   Security tests : 9/9 passed
 ============================================================
 ```
@@ -148,6 +156,7 @@ This generates all 11 figures used in the paper.
 | ElGamal Group | RFC 3526 Group 15 (3072-bit safe prime) |
 | VRF | ECVRF-P256-SHA256 (RFC 9381) |
 | Hash Bridge | SHA-512 |
+| Hash Binding | SHA-256 (FO-style) |
 | Security Level | ≈126.4 bits (effective) |
 
 ---
@@ -156,6 +165,8 @@ This generates all 11 figures used in the paper.
 
 - Bellare & Rogaway, EUROCRYPT 1994
 - ElGamal, IEEE Trans. Inf. Theory 1985
+- Dodis & Katz, TCC 2005
+- Fujisaki & Okamoto, CRYPTO 1999
 - Micali, Rabin, Vadhan, IEEE FOCS 1999
 - Goldberg et al., IETF RFC 9381, 2023
 - Kivinen & Kojo, IETF RFC 3526, 2003
