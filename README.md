@@ -1,179 +1,193 @@
-# VODH-KEM: VRF-Ordered Dual-Hardness Key Encapsulation Mechanism
+# VODH-KEM: Dual-Hardness Hybrid Key Encapsulation With VRF Ordering and Cross-Verification
 
-> **A hybrid public-key KEM combining RSA-OAEP and ElGamal under a VRF-governed composition order, with cross-verification and Fujisaki–Okamoto-style hash binding.**
+**Research artifact accompanying the accepted IEEE Access manuscript.**
 
-> ⚠️ **Anonymous repository** — This repository supports an anonymous submission currently under peer review.
+VODH-KEM combines RSA-OAEP and ElGamal encryption of a shared 256-bit seed, a verifiable VRF-derived ordering commitment, cross-verification at decapsulation, and ciphertext-bound session-key derivation.
 
----
+> **Research prototype, not production-ready cryptography.** The security results have explicitly stated assumptions and limitations. Do not use this implementation to protect real-world secrets or deploy it in TLS.
 
-## ⚡ Quick Start
+## Publication and artifact
 
-```bash
-# Compile and run (Linux/macOS)
-gcc -O2 -Wno-deprecated-declarations -o vodh_kem main.c -lssl -lcrypto -lm
-./vodh_kem
-```
+**Paper:** *VODH-KEM: Dual-Hardness Hybrid Key Encapsulation With VRF Ordering and Cross-Verification*  
+**Authors:** Missaoui Mohammed El Amine and Qian Weizhong  
+**Journal:** IEEE Access (accepted; publication metadata pending)  
+**Source artifact:** https://github.com/anonymuskem/vodh-kem-artifact
 
-Expected runtime: approximately 20–30 seconds on a modern machine (50 benchmark runs per scheme at 3072-bit keys).
+The manuscript cites this repository as the source for the C/OpenSSL implementation and benchmark artifacts. A final DOI and citation record can be added when IEEE assigns them. Do not substitute the manuscript's placeholder DOI.
 
----
+## Security scope: read before using
 
-## 📄 Overview
+The paper establishes a **Random Oracle Model (ROM) reduction of IND-CCA2 security to Dual-Seed One-Wayness (DS-OW)**. It proves DS-OW from RSA-OAEP IND-CPA security and the ElGamal/DDH assumption **only when the adversary has no decapsulation queries**. DS-OW with chosen-ciphertext queries is an **explicit assumption**, not a consequence proved from RSA-OAEP and DDH alone. See Theorems 1–2 and Remark 3.
 
-VODH-KEM is a hybrid Key Encapsulation Mechanism that combines RSA-OAEP and ElGamal under a Verifiable Random Function (VRF)-governed composition order, with cross-verification and Fujisaki–Okamoto-style hash binding. It achieves IND-CCA2 security in the Random Oracle Model under the **joint** RSA-OAEP, DDH, and VRF pseudorandomness assumptions.
+- **Not an OR-combiner:** Breaking either underlying encryption component exposes the shared seed and therefore the derived session key. VODH-KEM does **not** retain session-key confidentiality under Single-Assumption Failure (SAF).
+- **Ciphertext consistency:** Decapsulation checks that the two components decrypt to the same seed. The paper analyzes resistance to re-binding an existing challenge ciphertext component to a *different* seed. This is **not ciphertext unforgeability**: anyone with the public key can create fresh valid encapsulations.
+- **VRF commitment:** ECVRF-P256-SHA256 commits to a verifiable ordering bit. VRF pseudorandomness is **not required** by the paper's IND-CCA2-to-DS-OW reduction; it is used in its separate order-bias analysis.
+- **Hash binding:** The session key is derived from `SHA-256(K_raw || C1 || C2 || b)` after the consistency check. The paper describes this as *FO-style* hash binding, not a full Fujisaki–Okamoto transform.
 
-### 🔍 Scope and honest framing
+## Repository contents
 
-- **What VODH-KEM achieves:** standard IND-CCA2 security under the joint underlying assumptions (Theorem 1 of the paper).
-- **What VODH-KEM does NOT achieve:** session-key confidentiality when one underlying assumption is broken. On this metric, OR-combiners such as Dodis–Katz are **strictly stronger**.
-- **What VODH-KEM provides structurally:** cross-verification ciphertext integrity (no PPT adversary can re-bind existing ciphertext components without breaking the unbroken assumption) and a verifiable composition order.
+The current artifact is organized around the following files:
 
-The Single-Assumption Failure (SAF) framing in the paper is used as an **analytical lens** for evaluating the construction's structural behavior, not as a strengthened security notion.
+| File | Purpose |
+| --- | --- |
+| `main.c` | Primary C/OpenSSL reference implementation and experimental evaluation |
+| `vodh_plots_c.py` | Generates figures from recorded benchmark results |
+| `vodh_c_results_3072.json` | Recorded 3072-bit benchmark data (50 runs per scheme) |
+| `prototype.py` | Historical Python prototype; uses an HMAC-based VRF approximation rather than the final ECVRF |
+| `prototype_Compa.py` | Historical Python comparison benchmark at 2048 bits |
+| `README.md` | Documentation and reproduction guidance |
 
-### Three core mechanisms:
-1. **SHA-512 Hash Bridge** — one-way dependency between RSA parameters and ElGamal group parameters
-2. **ECVRF-P256-SHA256 Order Commitment** — verifiable composition ordering
-3. **Cross-Verification + FO-style Hash Binding** — `K = SHA-256(K_raw ‖ C₁ ‖ C₂ ‖ b)` after cross-check passes; the hash binding is essential to defeat the re-encryption malleability attack
+The Python prototypes are retained for historical reference. **The C implementation and 3072-bit benchmark data are the primary artifacts for the accepted paper.** Results from the prototypes should not be represented as the final paper's results.
 
----
-
-## 📁 Repository Structure
-
-```
-VODH_KEM_M/
-│
-├── main.c                        # Production C/OpenSSL implementation (PRIMARY)
-├── vodh_plots_c.py               # Plot generator — reads JSON, produces 11 figures
-├── prototype.py                  # Python prototype (historical reference, HMAC-SHA256 VRF)
-├── prototype_Compa.py            # Python comparison benchmark (historical reference)
-├── vodh_c_results_3072.json      # Final benchmark results (50 runs, 3072-bit, C/OpenSSL)
-└── README.md                     # This file
-```
-
-### File descriptions
-
-| File | Description |
-|---|---|
-| `main.c` | Full C/OpenSSL 3.6.1 implementation. Includes VODH-KEM KeyGen, Encaps, Decaps with hash binding, real ECVRF-P256-SHA256, ElGamal over RFC 3526 Group 15 (3072-bit), and all 9 security verification tests. Outputs benchmark results as JSON. |
-| `vodh_plots_c.py` | Python script that reads `vodh_c_results_3072.json` and generates 11 publication-quality figures. |
-| `prototype.py` | Original Python 3.11 prototype used for initial correctness validation. Uses HMAC-SHA256 as VRF approximation and 2048-bit keys. Kept for historical reference. |
-| `prototype_Compa.py` | Python comparison benchmark (RSA-OAEP vs ElGamal vs Std. Hybrid vs VODH-KEM) at 2048-bit. Kept for historical reference. |
-| `vodh_c_results_3072.json` | Benchmark output from `main.exe` — 50 runs per scheme, 3072-bit keys, C/OpenSSL. Used by `vodh_plots_c.py` to generate figures. |
-
----
-
-## 🔧 Compilation & Running
+## Build and run
 
 ### Requirements
-- GCC 14+ (MinGW-w64 on Windows, or native on Linux/macOS)
-- OpenSSL 3.x (with development headers)
 
----
+- C compiler (GCC; paper environment: GCC 14.2)
+- OpenSSL 3.x with development headers (paper environment: OpenSSL 3.6.1)
+- Python 3 with NumPy, SciPy, and Matplotlib for plotting
 
-### Windows (MSYS2 MinGW x64) — Recommended
+### Windows (MSYS2 MinGW x64)
 
 ```bash
-# Install dependencies
 pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-openssl
 
-# Compile
 gcc -O2 -Wno-deprecated-declarations -o main.exe main.c -lssl -lcrypto -lm
-
-# Run
 ./main.exe
 ```
 
-### Linux
+### Linux (Debian/Ubuntu)
 
 ```bash
-sudo apt-get install gcc libssl-dev -y
+sudo apt-get update
+sudo apt-get install -y gcc libssl-dev
+
 gcc -O2 -Wno-deprecated-declarations -o vodh_kem main.c -lssl -lcrypto -lm
 ./vodh_kem
 ```
 
-### macOS
+### macOS (Homebrew)
 
 ```bash
 brew install openssl
+
 gcc -O2 -Wno-deprecated-declarations -o vodh_kem main.c \
-    -I$(brew --prefix openssl)/include \
-    -L$(brew --prefix openssl)/lib \
-    -lssl -lcrypto -lm
+  -I"$(brew --prefix openssl)/include" \
+  -L"$(brew --prefix openssl)/lib" \
+  -lssl -lcrypto -lm
+
 ./vodh_kem
 ```
 
----
+Build commands are provided for the existing single-file layout. The published measurements were collected on Windows 11 (AMD64), GCC 14.2, and OpenSSL 3.6.1. Different compiler, library, hardware, and operating-system versions may produce different timings. These cross-platform commands have not been independently verified here.
 
-> **Expected runtime:** approximately 20–30 seconds on a modern machine.
-> Key generation is the slowest step (~194 ms per run due to safe prime search).
+## Reproducing the benchmarks
 
-## 📊 Generating the Figures
+The accepted paper reports 50 runs per scheme using 3072-bit parameters. Running the C executable performs the implementation's evaluation and writes benchmark results.
+
+```bash
+./vodh_kem
+```
+
+On Windows/MSYS2, use `./main.exe` instead.
+
+If the executable writes `vodh_c_results.json`, preserve the recorded reference file and rename the newly generated output before plotting:
 
 ```bash
 mv vodh_c_results.json vodh_c_results_3072.json
-pip install matplotlib numpy scipy
+```
+
+**Caution:** This command overwrites the filename used for the reference data. Save or commit the original JSON first if you want to compare a new run against the accepted paper.
+
+### Generate figures
+
+```bash
+python -m pip install numpy scipy matplotlib
 python vodh_plots_c.py
 ```
 
-This generates all 11 figures used in the paper.
+The plotting script is intended to read `vodh_c_results_3072.json` and generate the experimental figures. Check its input/output paths against the current script before running.
 
----
+## Reported performance
 
-## 📋 Expected Output
+The following values are from the accepted manuscript, not from a new benchmark run.
 
-```
-============================================================
-  VODH-KEM FULL EXPERIMENTAL EVALUATION (C / OpenSSL)
-============================================================
-  OpenSSL version : OpenSSL 3.6.x
-  RSA key bits    : 3072
-  ElGamal group   : RFC 3526 Group 15 (3072-bit safe prime)
-  VRF             : ECVRF-P256-SHA256 (real proof, verifiable)
-  Runs            : 50 per operation per scheme
-============================================================
-    T1. Correctness (K_encaps == K_decaps)               : PASS
-    T2. VRF determinism (same input => same beta)        : PASS
-    T3. VRF proof valid (correct key)                    : PASS
-    T4. VRF proof rejected (wrong public key)            : PASS
-    T5. Tampered ciphertext rejected                     : PASS
-    T6. Wrong private key rejected                       : PASS
-    T7. Hash bridge sensitive to RSA params              : PASS
-    T8. VRF different input => different beta            : PASS
-    T9. ECVRF verifiable with public key only (no sk)    : PASS
+| Operation | VODH-KEM mean | Standard deviation |
+| --- | ---: | ---: |
+| Key generation | 193.58 ms | 112.21 ms |
+| Encapsulation | 12.40 ms | 0.53 ms |
+| Decapsulation | 15.18 ms | 0.48 ms |
+| Encapsulation + decapsulation | 27.58 ms | — |
 
-  VODH-KEM (Ours):  KeyGen ~194 ms   Encaps ~12.4 ms   Decaps ~15.2 ms
-  Security tests : 9/9 passed
-============================================================
-```
+For comparison, the manuscript reports **25.2 ms** total encapsulation-plus-decapsulation time for ElGamal alone, versus **27.58 ms** for VODH-KEM: approximately **1.09×** the ElGamal baseline.
 
----
+These measurements are environment-specific. The manuscript reports nine passing implementation verification tests; passing tests do not substitute for a formal security proof or independent security audit.
 
-## 🔑 Key Parameters
+## Cryptographic parameters
 
-| Parameter | Value |
-|---|---|
-| RSA Key Size | 3072 bits |
-| ElGamal Group | RFC 3526 Group 15 (3072-bit safe prime) |
+| Parameter | Configuration |
+| --- | --- |
+| RSA-OAEP modulus | 3072 bits |
+| ElGamal group | RFC 3526 Group 15, fixed 3072-bit safe prime |
+| ElGamal generator | 2 |
+| Encapsulated seed | 256 bits |
 | VRF | ECVRF-P256-SHA256 (RFC 9381) |
-| Hash Bridge | SHA-512 |
-| Hash Binding | SHA-256 (FO-style) |
-| Security Level | ≈126.4 bits (effective) |
+| VRF commitment input | SHA-256 of encoded public parameters |
+| Session-key derivation | SHA-256 over seed, both ciphertext components, and order bit |
+| RSA ciphertext | 384 bytes |
+| ElGamal ciphertext | 768 bytes |
+| Order bit serialization | 1 byte |
+| Total encapsulation size | 1153 bytes |
 
----
+The ElGamal group is **not derived from the RSA modulus**. This is a deliberate correction from the earlier hash-bridge design.
 
-## 📚 References
+## Implementation verification
 
-- Bellare & Rogaway, EUROCRYPT 1994
-- ElGamal, IEEE Trans. Inf. Theory 1985
-- Dodis & Katz, TCC 2005
-- Fujisaki & Okamoto, CRYPTO 1999
-- Micali, Rabin, Vadhan, IEEE FOCS 1999
-- Goldberg et al., IETF RFC 9381, 2023
-- Kivinen & Kojo, IETF RFC 3526, 2003
-- NIST FIPS 203, 2024
+The accepted paper reports all nine tests passing:
 
----
+| Test | Verification |
+| --- | --- |
+| T1 | Encapsulation/decapsulation correctness |
+| T2 | VRF determinism |
+| T3 | Valid VRF proof acceptance |
+| T4 | Wrong-key VRF proof rejection |
+| T5 | Tampered ciphertext rejection |
+| T6 | Wrong private-key rejection |
+| T7 | RSA/ElGamal parameter independence |
+| T8 | VRF output distinctness for different inputs |
+| T9 | VRF verification using only the public key |
 
-## 📝 License
+These are implementation checks, not empirical proofs of IND-CCA2 security.
 
-Provided for academic and research purposes. Author information will be disclosed upon paper acceptance.
+## Limitations
+
+- **Explicit DS-OW assumption:** The chosen-ciphertext version of DS-OW is assumed rather than reduced to RSA-OAEP and DDH alone.
+- **No single-assumption-failure confidentiality:** Compromise of either underlying encryption component exposes the encapsulated seed.
+- **No post-quantum security:** Both RSA and finite-field ElGamal are vulnerable to sufficiently capable quantum computers.
+- **Not a production TLS integration:** The paper discusses protocol integration, but this repository does not establish a standards-compliant, production-ready TLS deployment.
+- **Implementation considerations:** The manuscript identifies engineering limitations, including its ECVRF hash-to-curve approach and single-machine timing evaluation.
+
+See Sections VII and XI of the accepted manuscript for the precise scope of the security analysis and limitations.
+
+## Citation
+
+If you use this artifact, please cite:
+
+Missaoui Mohammed El Amine and Qian Weizhong, **“VODH-KEM: Dual-Hardness Hybrid Key Encapsulation With VRF Ordering and Cross-Verification,”** *IEEE Access*, accepted, 2026. DOI pending.
+
+The final IEEE DOI, volume, pages, and publication date should be added after they are assigned.
+
+## References
+
+- Bellare and Rogaway, *Optimal Asymmetric Encryption*, EUROCRYPT 1994.
+- ElGamal, *A Public Key Cryptosystem and a Signature Scheme Based on Discrete Logarithms*, IEEE Transactions on Information Theory, 1985.
+- Dodis and Katz, work on hybrid KEM combiners, TCC 2005.
+- Fujisaki and Okamoto, work on secure encryption transformations, CRYPTO 1999.
+- Micali, Rabin, and Vadhan, *Verifiable Random Functions*, FOCS 1999.
+- IETF RFC 9381, *Verifiable Random Functions (VRFs)*.
+- IETF RFC 3526, *More Modular Exponential (MODP) Diffie-Hellman Groups for Internet Key Exchange (IKE)*.
+- NIST FIPS 203, *Module-Lattice-Based Key-Encapsulation Mechanism Standard*.
+
+## License
+
+No software license is specified in this README. Until a license is added, do not assume the repository grants permission for unrestricted redistribution or reuse. A license should be selected by the copyright holders before public reuse is encouraged.
