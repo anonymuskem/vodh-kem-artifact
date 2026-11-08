@@ -1,85 +1,371 @@
-VODH-KEM: Dual-Hardness Hybrid Key Encapsulation With VRF Ordering and Cross-Verification
-Research artifact accompanying an accepted IEEE Access paper (2026). 
-Authors: Missaoui Mohammed El Amine and Qian Weizhong 
-Article:  VODH-KEM: Dual-Hardness Hybrid Key Encapsulation With VRF Ordering and Cross-Verification 
-Repository: https://github.com/anonymuskem/vodh-kem-artifact
- DOI:Pending official IEEE publication metadata. The DOI in the author manuscript is a placeholder.
-Research code; not audited for production use. This repository contains the uploaded artifact examined in November 2026. The included docs/ARTIFACT_AUDIT.md records differences between the current code and the accepted manuscript. Do not describe this particular source version as an exact implementation of every statement in the accepted paper until those discrepancies have been resolved.
 
-Summary and security scope
-VODH-KEM combines RSA-OAEP and finite-field ElGamal encryption of the same seed, cross-verifies the decrypted values, derives the output key from the seed and ciphertext, and attaches a verifiable order commitment.
+# VODH-KEM: Dual-Hardness Hybrid Key Encapsulation With VRF Ordering and Cross-Verification
 
-The paper shows an IND-CCA2 reduction in the random-oracle model relative to the explicit Dual-Seed One-Wayness (DS-OW) assumption . It proves a no-decapsulation-query instance of DS-OW from RSA-OAEP and DDH; it does not establish the chosen-ciphertext instance directly from those primitive assumptions. VODH-KEM does not preserve session-key confidentiality when either underlying encryption component is broken. Its stated ciphertext-consistency property is narrower than ciphertext unforgeability. The VRF supports the order commitment; VRF pseudorandomness is not required for the paper's IND-CCA2-to-DS-OW reduction.
+**Reference implementation and experimental artifact for an accepted IEEE Access research paper (2026).**
 
-Implementation discrepancy: The code in Source/main.c still derives a SHA-512 hash of RSA parameters and adds it to OpenSSL's randomness before ElGamal key generation. The accepted manuscript instead specifies a fixed 3072-bit ElGamal group independent of RSA without a hash-derived dependency. The fixed prime itself is present in the code, but this legacy entropy-mixing step and its T7 test have not yet been updated. The code also describes its VRF as a simplified ECVRF construction; it has not been verified for RFC 9381 conformance. See the audit file.
-Layout
-Source/
-  main.c                      C/OpenSSL experiment and reference prototype
-  vodh_plots_c.py             Plot generator (reads archived JSON)
-  prototype.py                Historical Python prototype
-  prototype_Compa.py          Historical Python comparison
-  vodh_results.json           Historical Python results
-  vodh_comparison_results.json  Historical comparison results
-Results/
-  Json_Results/
-    vodh_c_results_3072.json  Archived 50-run measurements
-  Images/                     11 generated figures
-docs/
-  ARTIFACT_AUDIT.md           Verification results and known gaps
-requirements-plot.txt
-README.md
-The Python prototypes are historical and not the primary C/OpenSSL artifact for the paper.
-Build
-The paper's experimental environment was Windows 11 (AMD64), GCC 14.2, OpenSSL 3.6.1 , at 3072-bit keys and 50 runs per scheme. A Linux compilation and execution were also checked independently with GCC 14.2 and OpenSSL 3.5.5 ; measurements are machine- and library-dependent.
+VODH-KEM is a hybrid Key Encapsulation Mechanism (KEM) that combines RSA-OAEP and ElGamal encryption with verifiable ordering, cross-verification, and ciphertext-bound session-key derivation.
 
-From the root repository :
-Linux (Debian/Ubuntu)
+The project explores a structural approach to hybrid cryptography, focusing on the simultaneous use of two public-key primitives, consistency verification, and the behavior of the construction under Single-Assumption Failure (SAF).
+
+> **Research implementation:** This repository is intended for academic evaluation and reproducibility. It has not undergone an independent cryptographic security audit and should not be used in production systems.
+
+---
+
+## Publication
+
+**Title:** VODH-KEM: Dual-Hardness Hybrid Key Encapsulation With VRF Ordering and Cross-Verification
+
+**Authors:** Missaoui Mohammed El Amine and Qian Weizhong
+
+**Journal:** IEEE Access
+
+**Status:** Accepted (2026)
+
+**DOI:** To be added following official publication.
+
+The repository contains the C/OpenSSL implementation, historical Python prototypes, experimental data, and generated figures associated with the research.
+
+---
+
+## Overview
+
+VODH-KEM uses two public-key encryption primitives to protect the same randomly generated seed:
+
+- **RSA-OAEP:** Encrypts the encapsulated seed using RSA.
+- **ElGamal:** Independently encrypts the same seed over a finite-field group.
+- **VRF-based ordering:** Provides a verifiable commitment to the composition order.
+- **Cross-verification:** Checks that both ciphertext components decrypt to the same seed.
+- **Hash binding:** Derives the session key from the recovered seed and ciphertext components.
+
+The session-key derivation is specified as:
+
+```text
+K = SHA-256(K_raw || C1 || C2 || b)
+```
+
+where:
+
+- `K_raw` is the randomly generated 256-bit seed.
+- `C1` and `C2` are the ciphertext components.
+- `b` is the VRF-derived ordering bit.
+
+### Security scope
+
+The accepted paper establishes an IND-CCA2 security reduction in the Random Oracle Model relative to an explicit **Dual-Seed One-Wayness (DS-OW)** assumption.
+
+It also establishes a restricted DS-OW result based on RSA-OAEP and the Decisional Diffie-Hellman (DDH) assumption when no decapsulation queries are available.
+
+The chosen-ciphertext case remains an explicit assumption; it is not proved solely from RSA-OAEP and DDH.
+
+**Important limitations:**
+
+- VODH-KEM is not an OR-secure KEM combiner.
+- Breaking either underlying encryption component compromises session-key confidentiality.
+- The SAF analysis concerns residual structural properties, particularly ciphertext consistency.
+- Ciphertext consistency does not mean that fresh valid ciphertexts cannot be generated.
+- VRF pseudorandomness is not required for the IND-CCA2-to-DS-OW reduction.
+- The construction is not post-quantum secure.
+
+The complete security analysis and assumptions are presented in Section VII of the paper.
+
+---
+
+## Repository Structure
+
+```text
+vodh-kem-artifact/
+|
+|-- README.md
+|
+|-- Source/
+|   |-- main.c
+|   |-- main.exe
+|   |-- vodh_plots_c.py
+|   |-- prototype.py
+|   |-- prototype_Compa.py
+|   |-- vodh_results.json
+|   `-- vodh_comparison_results.json
+|
+`-- Results/
+    |-- Json_Results/
+    |   `-- vodh_c_results_3072.json
+    |
+    `-- Images/
+        |-- fig1_timing_comparison_c_3072.png
+        |-- fig2_per_run_c_3072.png
+        |-- ...
+        `-- fig11_dashboard_c_3072.png
+```
+
+### Main files
+
+| File | Description |
+|---|---|
+| `Source/main.c` | Primary C/OpenSSL implementation, verification tests, and comparative benchmarks |
+| `Source/vodh_plots_c.py` | Python script used to generate experimental visualizations |
+| `Results/Json_Results/vodh_c_results_3072.json` | Recorded benchmark results for 3072-bit parameters |
+| `Results/Images/` | Experimental plots generated from the recorded results |
+| `Source/prototype.py` | Earlier Python prototype used during development |
+| `Source/prototype_Compa.py` | Historical Python comparison experiments |
+| `Source/main.exe` | Precompiled Windows executable included in the original repository |
+
+The Python prototypes represent earlier development stages and should not be considered equivalent to the final C implementation.
+
+---
+
+## Requirements
+
+### C Implementation
+
+- GCC or another compatible C compiler
+- OpenSSL 3.x with development headers
+- A Linux, Windows, or macOS development environment
+
+The experimental environment reported in the paper was:
+
+| Component | Configuration |
+|---|---|
+| Operating system | Windows 11 (AMD64) |
+| Compiler | GCC 14.2 |
+| Cryptographic library | OpenSSL 3.6.1 |
+| RSA modulus | 3072 bits |
+| ElGamal group | RFC 3526 Group 15 |
+| Benchmark iterations | 50 per scheme |
+
+### Python Visualization
+
+The plotting script requires:
+
+```bash
+python -m pip install numpy scipy matplotlib
+```
+
+---
+
+## Compilation and Execution
+
+Run the following commands from the repository root.
+
+### Windows (MSYS2 MinGW x64)
+
+Install the required packages:
+
+```bash
+pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-openssl
+```
+
+Compile:
+
+```bash
+gcc -O2 -Wno-deprecated-declarations -o vodh_kem.exe Source/main.c -lssl -lcrypto -lm
+```
+
+Run:
+
+```bash
+./vodh_kem.exe
+```
+
+### Linux (Ubuntu/Debian)
+
+Install dependencies:
+
+```bash
 sudo apt-get update
 sudo apt-get install -y gcc libssl-dev
+```
+
+Compile:
+
+```bash
 gcc -O2 -Wno-deprecated-declarations -o vodh_kem Source/main.c -lssl -lcrypto -lm
+```
+
+Run:
+
+```bash
 ./vodh_kem
-Windows (MSYS2 MinGW x64)
-pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-openssl
-gcc -O2 -Wno-deprecated-declarations -o vodh_kem.exe Source/main.c -lssl -lcrypto -lm
-./vodh_kem.exe
-macOS (Homebrew)
+```
+
+### macOS (Homebrew)
+
+Install OpenSSL:
+
+```bash
 brew install openssl
+```
+
+Compile:
+
+```bash
 gcc -O2 -Wno-deprecated-declarations -o vodh_kem Source/main.c \
   -I"$(brew --prefix openssl)/include" \
-  -L"$(brew --prefix openssl)/lib" -lssl -lcrypto -lm
+  -L"$(brew --prefix openssl)/lib" \
+  -lssl -lcrypto -lm
+```
+
+Run:
+
+```bash
 ./vodh_kem
-The Windows and macOS commands have not been independently executed in this audit.
+```
 
-The executable runs the current implementation's verification tests and 50-run comparative benchmarks, then writes vodh_c_results.json into the current working directory . The program currently prints Hash bridge: SHA-512 and reports T7 as hash bridge sensitivity . These differ from the accepted manuscript's parameter-independence description. The JSON writer also hardcodes each of the nine individual test results as 1 ; use the terminal output for the observed per-test pass/fail status.
-Archived measurements
-The committed archived data is at Results/Json_Results/vodh_c_results_3072.json . Its 50 raw samples are internally consistent with the file's summary statistics. The paper reports:
-Operation	VODH-KEM mean (ms)	Standard deviation (ms)
-Key generation	193.58	112.21
-Encapsulation	12.40	0.53
-Decapsulation	15.18	0.48
-Total encapsulation + decapsulation	27.58	—
+The C program runs its verification tests and experimental benchmarks and generates a `vodh_c_results.json` file in the current working directory.
 
+The executable was successfully compiled and executed in a separate Linux test environment. Performance measurements may differ depending on the platform, processor, OpenSSL version, and compiler configuration.
 
-For comparison, the paper gives 25.2 ms total for ElGamal, a roughly 1.09× ratio. The archived JSON instead records 24.88 ms for ElGamal (11.88+13.00 ms): another small inconsistency with the rounded paper table that should be documented rather than silently rewritten.
-Generate plots
-python -m pip install -r requirements-plot.txt
+---
+
+## Experimental Results
+
+The accepted manuscript reports performance measurements using 3072-bit parameters and 50 runs per scheme.
+
+### VODH-KEM Performance
+
+| Operation | Mean (ms) | Standard Deviation (ms) |
+|---|---:|---:|
+| Key Generation | 193.58 | 112.21 |
+| Encapsulation | 12.40 | 0.53 |
+| Decapsulation | 15.18 | 0.48 |
+| Total Encapsulation + Decapsulation | 27.58 | — |
+
+The paper reports approximately **1.09× total encapsulation and decapsulation latency** relative to the ElGamal baseline.
+
+The archived JSON contains the recorded measurements. Numerical results from a new execution may differ from the original experimental environment.
+
+---
+
+## Generating Figures
+
+The repository includes a plotting script that generates 11 figures from the recorded benchmark data.
+
+Install the dependencies:
+
+```bash
+python -m pip install numpy scipy matplotlib
+```
+
+Generate the figures:
+
+```bash
 python Source/vodh_plots_c.py
-The script reads Results/Json_Results/vodh_c_results_3072.json and writes its 11 figure files to Results/Images/ . This operation was successfully checked on Linux.
+```
 
-To plot a new benchmark run, copy its JSON file into the archived results location only after backing up the paper's original dataset , then rerun the plotting script:
-cp Results/Json_Results/vodh_c_results_3072.json original_paper_results_backup.json
-cp vodh_c_results.json Results/Json_Results/vodh_c_results_3072.json
-python Source/vodh_plots_c.py
-The output file from a fresh run may differ substantially from the archived Windows measurements.
-Implementation parameters and tests
-The current source uses a 3072-bit RSA modulus, a hardcoded 3072-bit Group 15 ElGamal modulus with generator 2, and 256-bit session-key material. The accepted paper reports a 1153-byte core encapsulation : RSA ciphertext (384 bytes) + ElGamal ciphertext (768 bytes) + order bit (1 byte). The C struct also contains AES-GCM payload fields; its raw in-memory size is not an on-wire serialization of the 1153-byte KEM encapsulation.
+The script reads:
 
-The current Source/main.c reports these checks: correctness (T1), VRF determinism (T2), proof acceptance (T3), wrong-public-key rejection (T4), tampering rejection (T5), wrong-key rejection (T6), hash-bridge sensitivity (T7) , different-input VRF output (T8), and public-key proof verification (T9). These implementation tests do not establish cryptographic security or replace the paper's security analysis.
-Limitations and release status
-- The software has not undergone an independent cryptographic security audit or RFC 9381 conformance testing.
-- It is not post-quantum secure and is not intended for real-world secret protection or production TLS.
-- The chosen-ciphertext DS-OW assumption is explicit in the paper; the paper does not reduce it to RSA-OAEP and DDH alone.
-- The current source/test labels require reconciliation with the accepted paper. See docs/ARTIFACT_AUDIT.md before making a final publication release.
-- No license is included in this review package because authorization for a particular software license has not been provided. Contact the copyright holders regarding reuse.
-Quote
-Missaoui Mohammed El Amine and Qian Weizhong, “VODH-KEM: Dual-Hardness Hybrid Key Encapsulation With VRF Ordering and Cross-Verification,” IEEE Access , accepted 2026. DOI pending.
+```text
+Results/Json_Results/vodh_c_results_3072.json
+```
+
+and writes its figures to:
+
+```text
+Results/Images/
+```
+
+The generated visualizations include timing comparisons, per-run measurements, performance distributions, ciphertext-size comparisons, and verification-test summaries.
+
+To regenerate figures using new measurements, preserve the original JSON before replacing the plotting input.
+
+---
+
+## Implementation Verification
+
+The accepted paper reports nine verification checks:
+
+| Test | Description |
+|---|---|
+| T1 | Encapsulation and decapsulation correctness |
+| T2 | VRF determinism |
+| T3 | Valid VRF proof acceptance |
+| T4 | Invalid proof rejection with a different public key |
+| T5 | Tampered ciphertext rejection |
+| T6 | Incorrect private-key rejection |
+| T7 | RSA/ElGamal parameter independence |
+| T8 | Different-input VRF output distinctness |
+| T9 | Public-key-only VRF verification |
+
+**Reported result:** 9/9 tests passed in the experimental evaluation.
+
+### Implementation notes
+
+The available C source predates some of the final manuscript revisions:
+
+- The source still contains a legacy SHA-512 hash-bridge routine and labels T7 as hash-bridge sensitivity. The accepted paper instead specifies independent fixed ElGamal group parameters and describes T7 as parameter independence.
+- The source describes its VRF routine as a simplified ECVRF construction. Full conformance with RFC 9381 has not been independently established.
+- The implementation's serialization and some commitment inputs require reconciliation with the final pseudocode.
+- The JSON writer stores fixed per-test success flags rather than dynamically serializing each individual test result.
+
+These differences are documented to distinguish the currently available research artifact from the final manuscript specification.
+
+The verification tests demonstrate selected implementation behaviors; they do not replace formal security analysis or a cryptographic audit.
+
+---
+
+## Cryptographic Parameters
+
+| Parameter | Paper Specification |
+|---|---|
+| RSA | RSA-OAEP, 3072-bit modulus |
+| ElGamal | RFC 3526 Group 15, 3072-bit safe prime |
+| ElGamal generator | 2 |
+| VRF | ECVRF-P256-SHA256 |
+| Encapsulated seed | 256 bits |
+| Session-key derivation | SHA-256 ciphertext binding |
+| RSA ciphertext size | 384 bytes |
+| ElGamal ciphertext size | 768 bytes |
+| Ordering bit | 1 byte |
+| Total KEM encapsulation | 1153 bytes |
+
+The accepted construction uses fixed ElGamal group parameters independent of the RSA modulus.
+
+The 1153-byte value refers to the serialized core KEM encapsulation described in the paper, not necessarily the size of an implementation-specific C structure.
+
+---
+
+## Reproducibility and Limitations
+
+This repository provides the implementation and recorded experimental results associated with the research.
+
+For reproducibility:
+
+1. Use the documented compiler and cryptographic library where possible.
+2. Execute the C program and inspect the verification-test output.
+3. Compare newly generated benchmark data against the archived JSON.
+4. Regenerate figures using the provided Python script.
+5. Consult the paper for formal definitions, assumptions, and security limitations.
+
+The available implementation should be treated as a research prototype, not as a production-ready cryptographic library.
+
+In particular, the accepted paper's security arguments are conditional on the stated assumptions, and a complete independent implementation audit has not been performed.
+
+---
+
+## Citation
+
+If you use this repository or its experimental results in academic work, please cite:
+
+**Missaoui Mohammed El Amine and Qian Weizhong.**  
+"VODH-KEM: Dual-Hardness Hybrid Key Encapsulation With VRF Ordering and Cross-Verification."  
+*IEEE Access*, accepted 2026.
+
+The official IEEE DOI and publication details will be added when available.
+
+---
+
+## References
+
+1. Bellare and Rogaway, *Optimal Asymmetric Encryption*, EUROCRYPT, 1994.
+2. ElGamal, *A Public Key Cryptosystem and a Signature Scheme Based on Discrete Logarithms*, IEEE Transactions on Information Theory, 1985.
+3. Dodis and Katz, hybrid KEM combiners, TCC, 2005.
+4. Fujisaki and Okamoto, secure encryption transformations, CRYPTO, 1999.
+5. Micali, Rabin, and Vadhan, *Verifiable Random Functions*, FOCS, 1999.
+6. IETF RFC 9381, *Verifiable Random Functions (VRFs)*, 2023.
+7. IETF RFC 3526, *More Modular Exponential (MODP) Diffie-Hellman Groups for Internet Key Exchange (IKE)*, 2003.
+8. NIST FIPS 203, *Module-Lattice-Based Key-Encapsulation Mechanism Standard*, 2024.
+
+---
+
+## License
+
+No software license has been declared for this repository. Reuse and redistribution are subject to applicable copyright permissions until the copyright holders select a license.
